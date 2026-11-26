@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>For Jamie</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;background:#07040a;overflow:hidden;font-family:"Georgia","Times New Roman",serif;color:#f4e9ef}
+  #stage{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+  .glow{position:absolute;width:70vmin;height:70vmin;border-radius:50%;
+    background:radial-gradient(circle,rgba(214,92,140,.55) 0%,rgba(120,40,120,.25) 40%,transparent 70%);
+    filter:blur(30px);animation:pulse 6s ease-in-out infinite}
+  .glow.two{width:110vmin;height:110vmin;background:radial-gradient(circle,rgba(255,170,110,.18) 0%,transparent 60%);animation-duration:9s;animation-delay:-3s}
+  @keyframes pulse{0%,100%{transform:scale(.9);opacity:.6}50%{transform:scale(1.08);opacity:1}}
+  .dust{position:absolute;inset:0;pointer-events:none}
+  .dust span{position:absolute;width:3px;height:3px;border-radius:50%;background:#ffd6e6;opacity:0;animation:float linear infinite}
+  @keyframes float{0%{transform:translateY(20px);opacity:0}20%{opacity:.7}100%{transform:translateY(-120px);opacity:0}}
+  #line{position:relative;z-index:2;max-width:min(880px,88vw);text-align:center;font-size:clamp(24px,4.2vw,52px);
+    line-height:1.3;font-style:italic;letter-spacing:.02em;opacity:0;transition:opacity 1.6s ease, filter 1.6s ease, transform 1.6s ease;
+    filter:blur(8px);transform:translateY(10px);text-shadow:0 0 24px rgba(255,140,190,.55)}
+  #line.show{opacity:1;filter:blur(0);transform:translateY(0)}
+  #line b{font-style:normal;font-weight:normal;color:#ffb3cf;letter-spacing:.18em;text-transform:uppercase}
+  #brand{position:absolute;bottom:6vh;width:100%;text-align:center;z-index:2;font-size:13px;letter-spacing:.5em;text-transform:uppercase;color:rgba(255,200,225,.55)}
+  #start{position:absolute;z-index:5;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;
+    background:rgba(7,4,10,.88);cursor:pointer;transition:opacity 1s}
+  #start h1{font-weight:normal;font-style:italic;font-size:clamp(28px,5vw,56px);text-shadow:0 0 30px rgba(255,140,190,.7)}
+  #start p{letter-spacing:.4em;font-size:12px;text-transform:uppercase;color:#ffb3cf;animation:pulse 3s infinite}
+  #start.hide{opacity:0;pointer-events:none}
+  #mute{position:absolute;top:18px;right:20px;z-index:4;background:none;border:1px solid rgba(255,180,210,.35);color:#ffc9dc;
+    font:12px Georgia,serif;letter-spacing:.2em;padding:8px 14px;border-radius:20px;cursor:pointer}
+  .vignette{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 40%,rgba(0,0,0,.85) 100%);z-index:1}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="glow two"></div>
+  <div class="glow"></div>
+  <div class="dust" id="dust"></div>
+  <div class="vignette"></div>
+  <div id="line"></div>
+  <div id="brand">your own AI &middot; always on</div>
+  <button id="mute" type="button">SOUND ON</button>
+  <div id="start"><h1>Jamie&hellip;</h1><p>tap to play</p></div>
+</div>
+<audio id="vo" preload="auto" playsinline src="audio/ad.mp3"></audio>
+<script>
+const script = [
+  { html: "Jamie...", start: 0.00 },
+  { html: "You've been carrying everything yourself.", start: 1.50 },
+  { html: "Cooking. Cleaning. Remembering everyone's schedule...", start: 4.40 },
+  { html: "The late nights. The early mornings. All of it, on your shoulders.", start: 8.80 },
+  { html: "What if something else handled all of it?", start: 14.30 },
+  { html: "An AI. <b>Yours.</b>", start: 16.72 },
+  { html: "Always on. Always thinking about you.", start: 19.00 },
+  { html: "It would never forget a birthday...", start: 22.04 },
+  { html: "never burn the dinner...", start: 24.06 },
+  { html: "never ask you to repeat yourself.", start: 25.54 },
+  { html: "It could plan the week, keep the house running, remember the little things you shouldn't have to hold alone.", start: 27.22 },
+  { html: "Just you... and a little help that never sleeps.", start: 33.50 },
+  { html: "No more carrying the whole house in your head.", start: 37.02 },
+  { html: "Get one. <b>You deserve it.</b>", start: 39.78 },
+  { html: "Go on, Jamie. Let someone else take the wheel for once... I'll be waiting.", start: 41.82 }
+];
+const FADE_OUT_AT = 47.6; // last line ends ~45.98s, then a breath before the loop pad
+const el = document.getElementById('line');
+const startEl = document.getElementById('start');
+const muteBtn = document.getElementById('mute');
+const vo = document.getElementById('vo');
+let voiceOn = true, shown = -1, started = false;
+
+const dust = document.getElementById('dust');
+for (let i = 0; i < 40; i++) {
+  const s = document.createElement('span');
+  s.style.left = Math.random()*100 + '%';
+  s.style.top = (40 + Math.random()*60) + '%';
+  s.style.animationDuration = (8 + Math.random()*10) + 's';
+  s.style.animationDelay = (-Math.random()*15) + 's';
+  dust.appendChild(s);
+}
+
+function lineIndexAt(t) {
+  if (t >= FADE_OUT_AT) return -1;
+  let idx = -1;
+  for (let i = 0; i < script.length; i++) {
+    if (t >= script[i].start) idx = i;
+  }
+  return idx;
+}
+
+function sync() {
+  const t = vo.currentTime || 0;
+  const idx = lineIndexAt(t);
+  if (idx !== shown) {
+    shown = idx;
+    el.classList.remove('show');
+    if (idx < 0) {
+      el.innerHTML = '';
+      return;
+    }
+    // Let the fade-out start, then swap text and fade in
+    const next = script[idx].html;
+    setTimeout(() => {
+      if (shown !== idx) return;
+      el.innerHTML = next;
+      el.classList.add('show');
+    }, 220);
+  }
+}
+
+function start() {
+  if (started) return;
+  started = true;
+  startEl.classList.add('hide');
+  vo.muted = !voiceOn;
+  vo.currentTime = 0;
+  const play = vo.play();
+  if (play && play.catch) play.catch(() => {});
+}
+
+startEl.addEventListener('click', start);
+startEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); start(); }
+});
+muteBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  voiceOn = !voiceOn;
+  vo.muted = !voiceOn;
+  muteBtn.textContent = voiceOn ? 'SOUND ON' : 'SOUND OFF';
+});
+vo.addEventListener('timeupdate', sync);
+vo.addEventListener('seeked', sync);
+vo.addEventListener('ended', () => {
+  shown = -2;
+  el.classList.remove('show');
+  el.innerHTML = '';
+  vo.currentTime = 0;
+  if (started) {
+    vo.muted = !voiceOn;
+    const play = vo.play();
+    if (play && play.catch) play.catch(() => {});
+  }
+});
+</script>
+</body>
+</html>
